@@ -18,7 +18,9 @@ from api.podcast_service import PodcastService
 from open_notebook.ai.models import ModelManager
 from open_notebook.domain.base import RecordModel
 from open_notebook.domain.content_settings import ContentSettings
+from open_notebook.domain.flashcards import FlashcardDeck
 from open_notebook.domain.notebook import Asset, Note, Notebook, Source
+from open_notebook.domain.quiz import Quiz
 from open_notebook.domain.transformation import Transformation
 from open_notebook.exceptions import InvalidInputError
 from open_notebook.podcasts.models import EpisodeProfile, SpeakerProfile
@@ -213,6 +215,56 @@ class TestNotebookDomain:
         ):
             with pytest.raises(RuntimeError, match="source context failed"):
                 await notebook.get_context()
+
+    @pytest.mark.asyncio
+    async def test_notebook_get_quizzes_queries_quiz_of_relation(self):
+        """Test get_quizzes fetches quizzes via the quiz_of relation."""
+        notebook = Notebook(id="notebook:test", name="Test", description="Test")
+
+        async def fake_repo_query(query, variables=None):
+            assert "quiz_of" in query
+            return [
+                {
+                    "quiz": {
+                        "id": "quiz:1",
+                        "title": "Test Quiz",
+                        "questions": [],
+                    }
+                }
+            ]
+
+        with patch(
+            "open_notebook.domain.notebook.repo_query", new=fake_repo_query
+        ):
+            quizzes = await notebook.get_quizzes()
+
+        assert len(quizzes) == 1
+        assert quizzes[0].title == "Test Quiz"
+
+    @pytest.mark.asyncio
+    async def test_notebook_get_flashcard_decks_queries_relation(self):
+        """Test get_flashcard_decks fetches decks via the flashcard_deck_of relation."""
+        notebook = Notebook(id="notebook:test", name="Test", description="Test")
+
+        async def fake_repo_query(query, variables=None):
+            assert "flashcard_deck_of" in query
+            return [
+                {
+                    "flashcard_deck": {
+                        "id": "flashcard_deck:1",
+                        "title": "Test Deck",
+                        "cards": [],
+                    }
+                }
+            ]
+
+        with patch(
+            "open_notebook.domain.notebook.repo_query", new=fake_repo_query
+        ):
+            decks = await notebook.get_flashcard_decks()
+
+        assert len(decks) == 1
+        assert decks[0].title == "Test Deck"
 
 
 # ============================================================================
@@ -541,6 +593,80 @@ class TestTransformationDomain:
 
         assert transform.name == "summarize"
         assert transform.apply_default is True
+
+
+# ============================================================================
+# TEST SUITE 7b: Quiz & Flashcard Domain
+# ============================================================================
+
+
+class TestQuizDomain:
+    """Test suite for Quiz domain model."""
+
+    def test_quiz_creation(self):
+        """Test quiz model creation with question dicts."""
+        quiz = Quiz(
+            title="Test Quiz",
+            questions=[
+                {
+                    "question": "What is RAG?",
+                    "options": ["A", "B", "C", "D"],
+                    "correct_answer_index": 1,
+                    "explanation": "Because B is correct.",
+                }
+            ],
+        )
+
+        assert quiz.title == "Test Quiz"
+        assert len(quiz.questions) == 1
+        assert quiz.questions[0]["correct_answer_index"] == 1
+
+    @pytest.mark.asyncio
+    async def test_add_to_notebook_requires_notebook_id(self):
+        """Test add_to_notebook raises InvalidInputError without a notebook id."""
+        quiz = Quiz(id="quiz:test", title="Test Quiz", questions=[])
+
+        with pytest.raises(InvalidInputError):
+            await quiz.add_to_notebook("")
+
+    @pytest.mark.asyncio
+    async def test_add_to_notebook_relates_quiz_of(self):
+        """Test add_to_notebook creates a quiz_of relationship."""
+        quiz = Quiz(id="quiz:test", title="Test Quiz", questions=[])
+
+        with patch.object(
+            Quiz, "relate", new=AsyncMock(return_value=True)
+        ) as mock_relate:
+            await quiz.add_to_notebook("notebook:test")
+
+        mock_relate.assert_awaited_once_with("quiz_of", "notebook:test")
+
+
+class TestFlashcardDeckDomain:
+    """Test suite for FlashcardDeck domain model."""
+
+    def test_flashcard_deck_creation(self):
+        """Test flashcard deck model creation with card dicts."""
+        deck = FlashcardDeck(
+            title="Test Deck",
+            cards=[{"front": "RAG", "back": "Retrieval-Augmented Generation"}],
+        )
+
+        assert deck.title == "Test Deck"
+        assert len(deck.cards) == 1
+        assert deck.cards[0]["front"] == "RAG"
+
+    @pytest.mark.asyncio
+    async def test_add_to_notebook_relates_flashcard_deck_of(self):
+        """Test add_to_notebook creates a flashcard_deck_of relationship."""
+        deck = FlashcardDeck(id="flashcard_deck:test", title="Test Deck", cards=[])
+
+        with patch.object(
+            FlashcardDeck, "relate", new=AsyncMock(return_value=True)
+        ) as mock_relate:
+            await deck.add_to_notebook("notebook:test")
+
+        mock_relate.assert_awaited_once_with("flashcard_deck_of", "notebook:test")
 
 
 # ============================================================================

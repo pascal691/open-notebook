@@ -11,7 +11,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from open_notebook.domain.notebook import Source
+from open_notebook.graphs.flashcards import generate_flashcards
+from open_notebook.graphs.flashcards import graph as flashcards_graph
 from open_notebook.graphs.prompt import PatternChainState, graph
+from open_notebook.graphs.quiz import generate_quiz
+from open_notebook.graphs.quiz import graph as quiz_graph
 from open_notebook.graphs.tools import get_current_timestamp
 from open_notebook.graphs.transformation import (
     TransformationState,
@@ -151,6 +155,89 @@ class TestTransformationGraph:
         assert transformation_graph is not None
         assert hasattr(transformation_graph, "invoke")
         assert hasattr(transformation_graph, "ainvoke")
+
+
+# ============================================================================
+# TEST SUITE 3b: Quiz Graph
+# ============================================================================
+
+
+class TestQuizGraph:
+    """Test suite for quiz generation graph."""
+
+    def test_quiz_graph_compilation(self):
+        """Test that the quiz graph compiles correctly."""
+        assert quiz_graph is not None
+        assert hasattr(quiz_graph, "invoke")
+        assert hasattr(quiz_graph, "ainvoke")
+
+    @pytest.mark.asyncio
+    async def test_generate_quiz_parses_structured_output(self):
+        """Test generate_quiz calls the tools model and parses the JSON response."""
+        quiz_json = (
+            '{"title": "Sample Quiz", "questions": [{"question": "Q1?", '
+            '"options": ["A", "B", "C", "D"], "correct_answer_index": 2, '
+            '"explanation": "Because C."}]}'
+        )
+        mock_model = AsyncMock()
+        mock_model.ainvoke = AsyncMock(return_value=MagicMock(content=quiz_json))
+
+        state = {"context": "Some notebook content", "num_questions": 1}
+        config = {"configurable": {"model_id": None}}
+
+        with patch(
+            "open_notebook.graphs.quiz.provision_langchain_model",
+            new=AsyncMock(return_value=mock_model),
+        ) as mock_provision:
+            result = await generate_quiz(state, config)
+
+        assert mock_provision.await_args.kwargs["structured"] == {"type": "json"}
+        assert mock_provision.await_args.args[2] == "tools"
+        quiz = result["quiz"]
+        assert quiz.title == "Sample Quiz"
+        assert len(quiz.questions) == 1
+        assert quiz.questions[0].correct_answer_index == 2
+
+
+# ============================================================================
+# TEST SUITE 3c: Flashcards Graph
+# ============================================================================
+
+
+class TestFlashcardsGraph:
+    """Test suite for flashcard generation graph."""
+
+    def test_flashcards_graph_compilation(self):
+        """Test that the flashcards graph compiles correctly."""
+        assert flashcards_graph is not None
+        assert hasattr(flashcards_graph, "invoke")
+        assert hasattr(flashcards_graph, "ainvoke")
+
+    @pytest.mark.asyncio
+    async def test_generate_flashcards_parses_structured_output(self):
+        """Test generate_flashcards calls the tools model and parses the JSON response."""
+        deck_json = (
+            '{"title": "Sample Deck", "cards": [{"front": "RAG", '
+            '"back": "Retrieval-Augmented Generation"}]}'
+        )
+        mock_model = AsyncMock()
+        mock_model.ainvoke = AsyncMock(return_value=MagicMock(content=deck_json))
+
+        state = {"context": "Some notebook content", "num_cards": 1}
+        config = {"configurable": {"model_id": None}}
+
+        with patch(
+            "open_notebook.graphs.flashcards.provision_langchain_model",
+            new=AsyncMock(return_value=mock_model),
+        ) as mock_provision:
+            result = await generate_flashcards(state, config)
+
+        assert mock_provision.await_args.kwargs["structured"] == {"type": "json"}
+        assert mock_provision.await_args.args[2] == "tools"
+        deck = result["deck"]
+        assert deck.title == "Sample Deck"
+        assert len(deck.cards) == 1
+        assert deck.cards[0].front == "RAG"
 
 
 # ============================================================================
