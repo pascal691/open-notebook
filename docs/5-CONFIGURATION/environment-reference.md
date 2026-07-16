@@ -71,6 +71,17 @@ Comprehensive list of all environment variables available in Open Notebook.
 
 ---
 
+## Practice Exams
+
+| Variable | Required? | Default | Description |
+|----------|-----------|---------|-------------|
+| `OPEN_NOTEBOOK_EXAM_MAX_KNOWLEDGE_CHARS` | No | 120000 | Maximum number of characters of notebook knowledge (sources + notes) sent to the model when generating a practice exam. Lower it for small local models with a limited context window (avoids silent truncation); raise it for large-context models. |
+| `OPEN_NOTEBOOK_EXAM_NUM_CTX` | No | (provider default) | Context window (`num_ctx`) used for exam generation/grading with **Ollama**. Ollama defaults to a fairly small window (8192), which can truncate large exams — raise it (e.g. `16384`, `32768`) if your model and hardware support it. Ignored by non-Ollama providers. |
+
+> **Ollama tip:** exam generation and grading require the model to return strict JSON. Open Notebook already requests JSON mode, but very small models may still struggle — prefer a capable instruct model (e.g. `llama3.1:8b-instruct`, `qwen2.5`) and, if exams get cut off, increase `OPEN_NOTEBOOK_EXAM_NUM_CTX`.
+
+---
+
 ## API / CORS
 
 | Variable | Required? | Default | Description |
