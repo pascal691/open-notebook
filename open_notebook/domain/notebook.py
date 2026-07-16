@@ -10,6 +10,8 @@ from surrealdb import RecordID
 
 from open_notebook.database.repository import ensure_record_id, repo_query
 from open_notebook.domain.base import ObjectModel
+from open_notebook.domain.flashcards import FlashcardDeck
+from open_notebook.domain.quiz import Quiz
 from open_notebook.exceptions import DatabaseOperationError, InvalidInputError
 
 
@@ -64,6 +66,46 @@ class Notebook(ObjectModel):
             return [Note(**src["note"]) for src in srcs] if srcs else []
         except Exception as e:
             logger.error(f"Error fetching notes for notebook {self.id}: {str(e)}")
+            logger.exception(e)
+            raise DatabaseOperationError(e)
+
+    async def get_quizzes(self) -> List["Quiz"]:
+        try:
+            rows = await repo_query(
+                """
+                select * from (
+                    select in as quiz from quiz_of where out=$id
+                    fetch quiz
+                ) order by quiz.created desc
+                """,
+                {"id": ensure_record_id(self.id)},
+            )
+            return [Quiz(**row["quiz"]) for row in rows] if rows else []
+        except Exception as e:
+            logger.error(f"Error fetching quizzes for notebook {self.id}: {str(e)}")
+            logger.exception(e)
+            raise DatabaseOperationError(e)
+
+    async def get_flashcard_decks(self) -> List["FlashcardDeck"]:
+        try:
+            rows = await repo_query(
+                """
+                select * from (
+                    select in as flashcard_deck from flashcard_deck_of where out=$id
+                    fetch flashcard_deck
+                ) order by flashcard_deck.created desc
+                """,
+                {"id": ensure_record_id(self.id)},
+            )
+            return (
+                [FlashcardDeck(**row["flashcard_deck"]) for row in rows]
+                if rows
+                else []
+            )
+        except Exception as e:
+            logger.error(
+                f"Error fetching flashcard decks for notebook {self.id}: {str(e)}"
+            )
             logger.exception(e)
             raise DatabaseOperationError(e)
 

@@ -25,6 +25,7 @@ from api.routers import (
     embedding_rebuild,
     episode_profiles,
     exams,
+    flashcards,
     insights,
     languages,
     models,
@@ -32,6 +33,7 @@ from api.routers import (
     notes,
     podcasts,
     providers,
+    quiz,
     search,
     settings,
     source_chat,
@@ -399,6 +401,8 @@ app.include_router(providers.router, prefix="/api", tags=["providers"])
 app.include_router(capabilities.router, prefix="/api", tags=["capabilities"])
 app.include_router(languages.router, prefix="/api", tags=["languages"])
 app.include_router(exams.router, prefix="/api", tags=["exams"])
+app.include_router(quiz.router, prefix="/api", tags=["quiz"])
+app.include_router(flashcards.router, prefix="/api", tags=["flashcards"])
 
 
 @app.get("/")

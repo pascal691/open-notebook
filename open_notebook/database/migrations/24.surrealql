@@ -1,0 +1,31 @@
+-- Migration 24: Quiz & Flashcards
+-- Adds tables for AI-generated quizzes and flashcard decks, scoped to a
+-- notebook via graph relations (mirrors reference/artifact from migration 1).
+
+DEFINE TABLE IF NOT EXISTS quiz SCHEMAFULL;
+DEFINE FIELD IF NOT EXISTS title ON TABLE quiz TYPE string;
+DEFINE FIELD IF NOT EXISTS questions ON TABLE quiz FLEXIBLE TYPE array<object>;
+DEFINE FIELD IF NOT EXISTS created ON quiz DEFAULT time::now() VALUE $before OR time::now();
+DEFINE FIELD IF NOT EXISTS updated ON quiz DEFAULT time::now() VALUE time::now();
+
+DEFINE TABLE IF NOT EXISTS flashcard_deck SCHEMAFULL;
+DEFINE FIELD IF NOT EXISTS title ON TABLE flashcard_deck TYPE string;
+DEFINE FIELD IF NOT EXISTS cards ON TABLE flashcard_deck FLEXIBLE TYPE array<object>;
+DEFINE FIELD IF NOT EXISTS created ON flashcard_deck DEFAULT time::now() VALUE $before OR time::now();
+DEFINE FIELD IF NOT EXISTS updated ON flashcard_deck DEFAULT time::now() VALUE time::now();
+
+DEFINE TABLE IF NOT EXISTS quiz_of
+TYPE RELATION
+FROM quiz TO notebook;
+
+DEFINE TABLE IF NOT EXISTS flashcard_deck_of
+TYPE RELATION
+FROM flashcard_deck TO notebook;
+
+DEFINE EVENT IF NOT EXISTS quiz_delete ON TABLE quiz WHEN ($after == NONE) THEN {
+    delete quiz_of where in == $before.id;
+};
+
+DEFINE EVENT IF NOT EXISTS flashcard_deck_delete ON TABLE flashcard_deck WHEN ($after == NONE) THEN {
+    delete flashcard_deck_of where in == $before.id;
+};

@@ -875,3 +875,51 @@ class ExamSubmissionResponse(BaseModel):
     results: List[QuestionResultResponse] = Field(default_factory=list)
     created: str
     updated: str
+
+
+# Quiz models
+class QuizQuestionResponse(BaseModel):
+    question: str
+    options: List[str]
+    correct_answer_index: int
+    explanation: str
+
+
+class QuizGenerateRequest(BaseModel):
+    num_questions: int = Field(
+        10, description="Number of questions to generate", ge=3, le=20
+    )
+    model_id: Optional[str] = Field(
+        None, description="Optional model override; defaults to the tools model"
+    )
+
+
+class QuizResponse(BaseModel):
+    id: str
+    title: str
+    questions: List[QuizQuestionResponse]
+    created: str
+    updated: str
+
+
+# Flashcard models
+class FlashcardResponse(BaseModel):
+    front: str
+    back: str
+
+
+class FlashcardGenerateRequest(BaseModel):
+    num_cards: int = Field(15, description="Number of cards to generate", ge=3, le=30)
+    model_id: Optional[str] = Field(
+        None, description="Optional model override; defaults to the tools model"
+    )
+
+
+class FlashcardDeckResponse(BaseModel):
+    id: str
+    title: str
+    cards: List[FlashcardResponse]
+    created: str
+    updated: str
+
+
