@@ -56,8 +56,10 @@ export default function NotebookExamsPage() {
   if (activeExamId) {
     return (
       <AppShell>
-        <div className="mx-auto w-full max-w-3xl p-6">
-          <ExamRunner examId={activeExamId} onBack={() => setActiveExamId(null)} />
+        <div className="flex-1 min-h-0 overflow-y-auto">
+          <div className="mx-auto w-full max-w-3xl p-6">
+            <ExamRunner examId={activeExamId} onBack={() => setActiveExamId(null)} />
+          </div>
         </div>
       </AppShell>
     )
@@ -65,7 +67,8 @@ export default function NotebookExamsPage() {
 
   return (
     <AppShell>
-      <div className="mx-auto w-full max-w-4xl p-6 space-y-6">
+      <div className="flex-1 min-h-0 overflow-y-auto">
+        <div className="mx-auto w-full max-w-4xl p-6 space-y-6">
         <div className="flex items-center justify-between gap-4 border-b pb-4">
           <div className="flex items-center gap-3">
             <Link href={`/notebooks/${encodeURIComponent(notebookId)}`}>
@@ -156,6 +159,7 @@ export default function NotebookExamsPage() {
             ))}
           </div>
         )}
+        </div>
       </div>
 
       <GenerateExamDialog
