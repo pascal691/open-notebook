@@ -10,6 +10,7 @@ LangGraph workflows) used by ``api/routers/exams.py``. They orchestrate:
 * grading a user's submission against the questions' model answers.
 """
 
+import os
 from typing import Optional
 
 from loguru import logger
@@ -21,8 +22,22 @@ from open_notebook.graphs.exam import generate_graph, grade_graph
 
 # Upper bound on the knowledge context handed to the model. provision_langchain_model
 # transparently upgrades to a large-context model above ~105k tokens, but we still cap
-# the raw text to keep generation focused and costs predictable (~30k tokens).
-MAX_KNOWLEDGE_CHARS = 120_000
+# the raw text to keep generation focused and costs predictable (~30k tokens by default).
+# Configurable via env var so users on small local models can shrink it (to avoid
+# silent truncation) and users on large-context models can grow it.
+DEFAULT_MAX_KNOWLEDGE_CHARS = 120_000
+
+
+def _max_knowledge_chars() -> int:
+    raw = os.getenv("OPEN_NOTEBOOK_EXAM_MAX_KNOWLEDGE_CHARS")
+    if raw:
+        try:
+            return max(1000, int(raw))
+        except ValueError:
+            logger.warning(
+                f"Invalid OPEN_NOTEBOOK_EXAM_MAX_KNOWLEDGE_CHARS={raw!r}; using default"
+            )
+    return DEFAULT_MAX_KNOWLEDGE_CHARS
 
 
 async def _build_knowledge(notebook: Notebook) -> str:
@@ -33,12 +48,13 @@ async def _build_knowledge(notebook: Notebook) -> str:
             "This notebook has no content yet. Add sources or notes before "
             "generating an exam."
         )
-    if len(knowledge) > MAX_KNOWLEDGE_CHARS:
+    max_chars = _max_knowledge_chars()
+    if len(knowledge) > max_chars:
         logger.info(
             f"Truncating notebook knowledge from {len(knowledge)} to "
-            f"{MAX_KNOWLEDGE_CHARS} chars for exam generation"
+            f"{max_chars} chars for exam generation"
         )
-        knowledge = knowledge[:MAX_KNOWLEDGE_CHARS]
+        knowledge = knowledge[:max_chars]
     return knowledge
 
 

@@ -10,11 +10,23 @@ Two independent single-node graphs:
 * ``grade_graph`` — compares a user's answers against the model answers /
   rubric and returns per-question scores plus overall feedback.
 
-Both nodes follow the repo convention of parsing structured output with a
-``PydanticOutputParser`` and stripping extended-thinking tags from the response.
+Robustness notes
+----------------
+Both nodes must turn a free-form LLM response into a strict Pydantic object.
+Weaker/local models (e.g. small Ollama models) often wrap JSON in prose or code
+fences, so we:
+
+* request structured JSON output (``structured={"type": "json"}``) which nudges
+  every provider — and forces Ollama's ``format=json`` — toward valid JSON;
+* parse defensively (strip code fences, extract the ``{...}`` blob, try the
+  Pydantic parser) and retry once with a stronger "JSON only" instruction;
+* let the Ollama context window be tuned via ``OPEN_NOTEBOOK_EXAM_NUM_CTX`` so a
+  large knowledge base is not silently truncated.
 """
 
-from typing import List, Optional
+import os
+import re
+from typing import List, Optional, Type
 
 from ai_prompter import Prompter
 from langchain_core.output_parsers.pydantic import PydanticOutputParser
@@ -25,7 +37,7 @@ from typing_extensions import TypedDict
 
 from open_notebook.ai.provision import provision_langchain_model
 from open_notebook.domain.exam import QuestionType
-from open_notebook.exceptions import OpenNotebookError
+from open_notebook.exceptions import InvalidInputError, OpenNotebookError
 from open_notebook.utils import clean_thinking_content
 from open_notebook.utils.error_classifier import classify_error
 from open_notebook.utils.text_utils import extract_text_content
@@ -75,6 +87,95 @@ class GradingResult(BaseModel):
 
 
 # --------------------------------------------------------------------------- #
+# Robust structured-output helpers
+# --------------------------------------------------------------------------- #
+_FENCE_RE = re.compile(r"```(?:json)?\s*(.*?)\s*```", re.DOTALL | re.IGNORECASE)
+
+
+def _exam_num_ctx() -> Optional[int]:
+    """Optional Ollama context window, configured via OPEN_NOTEBOOK_EXAM_NUM_CTX."""
+    raw = os.getenv("OPEN_NOTEBOOK_EXAM_NUM_CTX")
+    if not raw:
+        return None
+    try:
+        value = int(raw)
+    except ValueError:
+        return None
+    return value if value > 0 else None
+
+
+def _model_call_kwargs(max_tokens: int) -> dict:
+    """Kwargs passed to provision_langchain_model for exam generation/grading."""
+    kwargs: dict = {"max_tokens": max_tokens, "structured": {"type": "json"}}
+    num_ctx = _exam_num_ctx()
+    if num_ctx is not None:
+        # Only Ollama reads num_ctx; other providers keep it in config and ignore it.
+        kwargs["num_ctx"] = num_ctx
+    return kwargs
+
+
+def _coerce_json(content, parser: PydanticOutputParser, cls: Type[BaseModel]):
+    """Best-effort parse of a model response into ``cls``; returns None on failure."""
+    text = clean_thinking_content(extract_text_content(content))
+    candidates: List[str] = []
+
+    fence = _FENCE_RE.search(text)
+    if fence:
+        candidates.append(fence.group(1))
+    # First "{" to last "}" — tolerant of leading/trailing prose.
+    brace = re.search(r"\{.*\}", text, re.DOTALL)
+    if brace:
+        candidates.append(brace.group(0))
+    candidates.append(text)
+
+    seen = set()
+    for candidate in candidates:
+        candidate = candidate.strip()
+        if not candidate or candidate in seen:
+            continue
+        seen.add(candidate)
+        try:
+            return cls.model_validate_json(candidate)
+        except Exception:
+            pass
+        try:
+            return parser.parse(candidate)
+        except Exception:
+            pass
+    return None
+
+
+async def _run_structured(
+    *, template: str, data: dict, cls: Type[BaseModel], model_id, max_tokens: int
+):
+    """Render a prompt, call the model, and robustly parse a structured result."""
+    parser = PydanticOutputParser(pydantic_object=cls)
+    system_prompt = Prompter(prompt_template=template, parser=parser).render(data=data)
+    model = await provision_langchain_model(
+        system_prompt, model_id, "transformation", **_model_call_kwargs(max_tokens)
+    )
+
+    for attempt in range(2):
+        prompt = system_prompt
+        if attempt > 0:
+            prompt = (
+                system_prompt
+                + "\n\nIMPORTANT: your previous answer could not be parsed. Respond "
+                "with ONLY the JSON object described above — no prose, no code fences."
+            )
+        ai_message = await model.ainvoke(prompt)
+        parsed = _coerce_json(ai_message.content, parser, cls)
+        if parsed is not None:
+            return parsed
+
+    raise InvalidInputError(
+        "The selected model did not return a valid result in the required JSON "
+        "format. Try again, choose a stronger model, or (for Ollama) increase the "
+        "context window via OPEN_NOTEBOOK_EXAM_NUM_CTX."
+    )
+
+
+# --------------------------------------------------------------------------- #
 # Generation graph
 # --------------------------------------------------------------------------- #
 class GenerateState(TypedDict, total=False):
@@ -90,19 +191,13 @@ class GenerateState(TypedDict, total=False):
 
 async def generate_questions(state: GenerateState, config: RunnableConfig) -> dict:
     try:
-        parser = PydanticOutputParser(pydantic_object=ExamGeneration)
-        system_prompt = Prompter(prompt_template="exam/generate", parser=parser).render(
-            data=state  # type: ignore[arg-type]
-        )
-        model = await provision_langchain_model(
-            system_prompt,
-            config.get("configurable", {}).get("model_id"),
-            "transformation",
+        generated = await _run_structured(
+            template="exam/generate",
+            data=dict(state),
+            cls=ExamGeneration,
+            model_id=config.get("configurable", {}).get("model_id"),
             max_tokens=8192,
         )
-        ai_message = await model.ainvoke(system_prompt)
-        content = clean_thinking_content(extract_text_content(ai_message.content))
-        generated = parser.parse(content)
         return {"generated": generated}
     except OpenNotebookError:
         raise
@@ -130,19 +225,13 @@ class GradeState(TypedDict, total=False):
 
 async def grade_answers(state: GradeState, config: RunnableConfig) -> dict:
     try:
-        parser = PydanticOutputParser(pydantic_object=GradingResult)
-        system_prompt = Prompter(prompt_template="exam/grade", parser=parser).render(
-            data=state  # type: ignore[arg-type]
-        )
-        model = await provision_langchain_model(
-            system_prompt,
-            config.get("configurable", {}).get("model_id"),
-            "transformation",
+        graded = await _run_structured(
+            template="exam/grade",
+            data=dict(state),
+            cls=GradingResult,
+            model_id=config.get("configurable", {}).get("model_id"),
             max_tokens=8192,
         )
-        ai_message = await model.ainvoke(system_prompt)
-        content = clean_thinking_content(extract_text_content(ai_message.content))
-        graded = parser.parse(content)
         return {"graded": graded}
     except OpenNotebookError:
         raise

@@ -6,6 +6,7 @@ the generation/grading service orchestration (with graphs and DB mocked out).
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from langchain_core.output_parsers.pydantic import PydanticOutputParser
 from surrealdb import RecordID
 
 from open_notebook.domain.exam import (
@@ -20,6 +21,10 @@ from open_notebook.graphs.exam import (
     GeneratedQuestion,
     GradedQuestion,
     GradingResult,
+    _coerce_json,
+    _exam_num_ctx,
+    _model_call_kwargs,
+    _run_structured,
     generate_graph,
     grade_graph,
 )
@@ -253,3 +258,92 @@ async def test_grade_submission_requires_questions():
 
     with pytest.raises(InvalidInputError):
         await exam_service.grade_submission(exam=exam, answers={}, model_id=None)
+
+
+# ============================================================================
+# Robust structured-output parsing
+# ============================================================================
+class TestRobustParsing:
+    parser = PydanticOutputParser(pydantic_object=ExamGeneration)
+
+    def test_clean_json(self):
+        c = '{"questions":[{"question":"Q","model_answer":"A","points":2}]}'
+        r = _coerce_json(c, self.parser, ExamGeneration)
+        assert r and r.questions[0].points == 2
+
+    def test_json_in_code_fence_with_prose(self):
+        c = 'Sure!\n```json\n{"questions":[{"question":"Q2","model_answer":"A2"}]}\n```\nDone'
+        r = _coerce_json(c, self.parser, ExamGeneration)
+        assert r and r.questions[0].question == "Q2"
+
+    def test_json_with_thinking_tags_and_trailing_prose(self):
+        c = '<think>plan</think> {"questions":[{"question":"Q3","model_answer":"A3"}]} ok'
+        r = _coerce_json(c, self.parser, ExamGeneration)
+        assert r and r.questions[0].question == "Q3"
+
+    def test_unparseable_returns_none(self):
+        assert _coerce_json("I cannot do that", self.parser, ExamGeneration) is None
+
+    def test_model_call_kwargs_defaults(self, monkeypatch):
+        monkeypatch.delenv("OPEN_NOTEBOOK_EXAM_NUM_CTX", raising=False)
+        k = _model_call_kwargs(8192)
+        assert k["max_tokens"] == 8192
+        assert k["structured"] == {"type": "json"}
+        assert "num_ctx" not in k
+
+    def test_num_ctx_env(self, monkeypatch):
+        monkeypatch.setenv("OPEN_NOTEBOOK_EXAM_NUM_CTX", "16384")
+        assert _exam_num_ctx() == 16384
+        assert _model_call_kwargs(1)["num_ctx"] == 16384
+        monkeypatch.setenv("OPEN_NOTEBOOK_EXAM_NUM_CTX", "notanint")
+        assert _exam_num_ctx() is None
+
+
+class _FakeModel:
+    """Async model stub returning canned responses per ainvoke call."""
+
+    def __init__(self, responses):
+        self.responses = list(responses)
+        self.calls = 0
+
+    async def ainvoke(self, prompt):
+        idx = min(self.calls, len(self.responses) - 1)
+        self.calls += 1
+        return type("Msg", (), {"content": self.responses[idx]})()
+
+
+@pytest.mark.asyncio
+async def test_run_structured_retries_then_succeeds():
+    fake = _FakeModel([
+        "sorry, I can't",  # first attempt: garbage
+        '{"questions":[{"question":"Q","model_answer":"A"}]}',  # retry: valid
+    ])
+    from open_notebook.graphs import exam as exam_graph
+
+    with patch.object(exam_graph, "provision_langchain_model", AsyncMock(return_value=fake)):
+        result = await _run_structured(
+            template="exam/generate",
+            data={"knowledge": "k", "num_questions": 1, "difficulty": "easy",
+                  "question_types": ["open"]},
+            cls=ExamGeneration,
+            model_id=None,
+            max_tokens=100,
+        )
+    assert result.questions[0].question == "Q"
+    assert fake.calls == 2  # retried once
+
+
+@pytest.mark.asyncio
+async def test_run_structured_raises_on_persistent_garbage():
+    fake = _FakeModel(["nope", "still nope"])
+    from open_notebook.graphs import exam as exam_graph
+
+    with patch.object(exam_graph, "provision_langchain_model", AsyncMock(return_value=fake)):
+        with pytest.raises(InvalidInputError):
+            await _run_structured(
+                template="exam/grade",
+                data={"questions": [], "language": None},
+                cls=GradingResult,
+                model_id=None,
+                max_tokens=100,
+            )
