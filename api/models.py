@@ -703,3 +703,123 @@ class NotebookDeleteResponse(BaseModel):
     unlinked_sources: int = Field(
         ..., description="Number of sources unlinked from notebook"
     )
+
+
+# Practice exam models
+ExamQuestionType = Literal["multiple_choice", "true_false", "short_answer", "open"]
+ExamDifficulty = Literal["easy", "medium", "hard", "mixed"]
+
+
+class ExamGenerateRequest(BaseModel):
+    notebook_id: str = Field(..., description="Notebook whose knowledge is examined")
+    title: Optional[str] = Field(
+        None, description="Optional exam title; auto-generated if omitted"
+    )
+    description: Optional[str] = Field(None, description="Optional exam description")
+    num_questions: int = Field(
+        default=5, ge=1, le=50, description="Number of questions to generate"
+    )
+    difficulty: ExamDifficulty = Field(default="medium", description="Difficulty level")
+    question_types: List[ExamQuestionType] = Field(
+        default_factory=lambda: ["open"],
+        description="Question types to include",
+    )
+    language: Optional[str] = Field(
+        None, description="Language for the exam (e.g. 'German'); defaults to knowledge language"
+    )
+    instructions: Optional[str] = Field(
+        None, description="Extra instructions to steer generation"
+    )
+    reference_source_id: Optional[str] = Field(
+        None,
+        description="Source ID of an uploaded reference exam, used only as a style template",
+    )
+    model_id: Optional[str] = Field(
+        None, description="Optional model override for generation"
+    )
+
+    @field_validator("question_types")
+    @classmethod
+    def _at_least_one_type(cls, v):
+        if not v:
+            return ["open"]
+        return v
+
+
+class ExamUpdateRequest(BaseModel):
+    title: Optional[str] = Field(None, description="New exam title")
+    description: Optional[str] = Field(None, description="New exam description")
+
+
+class ExamQuestionResponse(BaseModel):
+    number: int
+    question: str
+    question_type: ExamQuestionType
+    options: List[str] = Field(default_factory=list)
+    points: int
+    # Only populated when solutions are explicitly requested (e.g. after grading).
+    model_answer: Optional[str] = None
+    rubric: Optional[str] = None
+
+
+class ExamResponse(BaseModel):
+    id: str
+    notebook_id: str
+    title: str
+    description: Optional[str] = None
+    status: str
+    num_questions: int
+    difficulty: str
+    question_types: List[str] = Field(default_factory=list)
+    language: Optional[str] = None
+    instructions: Optional[str] = None
+    reference_source_id: Optional[str] = None
+    total_points: int
+    questions: List[ExamQuestionResponse] = Field(default_factory=list)
+    created: str
+    updated: str
+
+
+class ExamListItem(BaseModel):
+    id: str
+    notebook_id: str
+    title: str
+    description: Optional[str] = None
+    status: str
+    num_questions: int
+    difficulty: str
+    total_points: int
+    created: str
+    updated: str
+
+
+class ExamSubmitRequest(BaseModel):
+    answers: Dict[str, str] = Field(
+        ..., description="Map of question number (as string) to the student's answer"
+    )
+    model_id: Optional[str] = Field(
+        None, description="Optional model override for grading"
+    )
+
+
+class QuestionResultResponse(BaseModel):
+    number: int
+    awarded_points: float
+    max_points: float
+    correct: bool
+    feedback: str
+
+
+class ExamSubmissionResponse(BaseModel):
+    id: str
+    exam_id: str
+    answers: Dict[str, str] = Field(default_factory=dict)
+    status: str
+    graded: bool
+    total_score: float
+    max_score: float
+    percentage: float
+    overall_feedback: str
+    results: List[QuestionResultResponse] = Field(default_factory=list)
+    created: str
+    updated: str
