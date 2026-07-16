@@ -1,10 +1,11 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { NotebookResponse } from '@/lib/types/api'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Archive, ArchiveRestore, Trash2 } from 'lucide-react'
+import { Archive, ArchiveRestore, GraduationCap, Trash2 } from 'lucide-react'
 import { useUpdateNotebook } from '@/lib/hooks/use-notebooks'
 import { NotebookDeleteDialog } from './NotebookDeleteDialog'
 import { formatDistanceToNow } from 'date-fns'
@@ -68,6 +69,12 @@ export function NotebookHeader({ notebook }: NotebookHeaderProps) {
               )}
             </div>
             <div className="flex gap-2">
+              <Link href={`/notebooks/${encodeURIComponent(notebook.id)}/exams`}>
+                <Button variant="outline" size="sm">
+                  <GraduationCap className="h-4 w-4 mr-2" />
+                  {t('exams.title')}
+                </Button>
+              </Link>
               <Button
                 variant="outline"
                 size="sm"
