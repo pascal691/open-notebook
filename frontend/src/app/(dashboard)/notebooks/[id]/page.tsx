@@ -7,6 +7,7 @@ import { NotebookHeader } from '../components/NotebookHeader'
 import { SourcesColumn } from '../components/SourcesColumn'
 import { NotesColumn } from '../components/NotesColumn'
 import { ChatColumn } from '../components/ChatColumn'
+import { StudyColumn } from '../components/StudyColumn'
 import { useNotebook } from '@/lib/hooks/use-notebooks'
 import { useNotebookSources } from '@/lib/hooks/use-sources'
 import { useNotes } from '@/lib/hooks/use-notes'
@@ -16,7 +17,7 @@ import { useIsDesktop } from '@/lib/hooks/use-media-query'
 import { useTranslation } from '@/lib/hooks/use-translation'
 import { cn } from '@/lib/utils'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { FileText, StickyNote, MessageSquare } from 'lucide-react'
+import { FileText, StickyNote, MessageSquare, GraduationCap } from 'lucide-react'
 import {
   applyBulkSourceContext,
   applyBulkNoteContext,
@@ -50,14 +51,22 @@ export default function NotebookPage() {
   } = useNotebookSources(notebookId)
   const { data: notes, isLoading: notesLoading } = useNotes(notebookId)
 
-  // Get collapse states for dynamic layout
-  const { sourcesCollapsed, notesCollapsed } = useNotebookColumnsStore()
+  // Get collapse + focus states for dynamic layout
+  const { sourcesCollapsed, notesCollapsed, studyCollapsed, focusedColumn } =
+    useNotebookColumnsStore()
+
+  // A panel is visually collapsed if it was collapsed manually, or if another
+  // panel is currently focused/maximized. The focused panel takes the majority
+  // of the width so it's roomier and easier to read.
+  const effSourcesCollapsed = sourcesCollapsed || (focusedColumn !== null && focusedColumn !== 'sources')
+  const effNotesCollapsed = notesCollapsed || (focusedColumn !== null && focusedColumn !== 'notes')
+  const effStudyCollapsed = studyCollapsed || (focusedColumn !== null && focusedColumn !== 'study')
 
   // Detect desktop to avoid double-mounting ChatColumn
   const isDesktop = useIsDesktop()
 
-  // Mobile tab state (Sources, Notes, or Chat)
-  const [mobileActiveTab, setMobileActiveTab] = useState<'sources' | 'notes' | 'chat'>('chat')
+  // Mobile tab state (Sources, Notes, Chat, or Study)
+  const [mobileActiveTab, setMobileActiveTab] = useState<'sources' | 'notes' | 'chat' | 'study'>('chat')
 
   // Context selection state
   const [contextSelections, setContextSelections] = useState<ContextSelections>({
@@ -163,8 +172,8 @@ export default function NotebookPage() {
           {!isDesktop && (
             <>
               <div className="lg:hidden mb-4">
-                <Tabs value={mobileActiveTab} onValueChange={(value) => setMobileActiveTab(value as 'sources' | 'notes' | 'chat')}>
-                  <TabsList className="grid w-full grid-cols-3">
+                <Tabs value={mobileActiveTab} onValueChange={(value) => setMobileActiveTab(value as 'sources' | 'notes' | 'chat' | 'study')}>
+                  <TabsList className="grid w-full grid-cols-4">
                     <TabsTrigger value="sources" className="gap-2">
                       <FileText className="h-4 w-4" />
                       {t('navigation.sources')}
@@ -176,6 +185,10 @@ export default function NotebookPage() {
                     <TabsTrigger value="chat" className="gap-2">
                       <MessageSquare className="h-4 w-4" />
                       {t('common.chat')}
+                    </TabsTrigger>
+                    <TabsTrigger value="study" className="gap-2">
+                      <GraduationCap className="h-4 w-4" />
+                      {t('study.title')}
                     </TabsTrigger>
                   </TabsList>
                 </Tabs>
@@ -216,6 +229,7 @@ export default function NotebookPage() {
                     sourcesLoading={sourcesLoading}
                   />
                 )}
+                {mobileActiveTab === 'study' && <StudyColumn notebookId={notebookId} />}
               </div>
             </>
           )}
@@ -228,7 +242,11 @@ export default function NotebookPage() {
             {/* Sources Column */}
             <div className={cn(
               'transition-all duration-150',
-              sourcesCollapsed ? 'w-12 flex-shrink-0' : 'flex-none basis-1/3'
+              effSourcesCollapsed
+                ? 'w-12 flex-shrink-0'
+                : focusedColumn === 'sources'
+                  ? 'flex-[2] min-w-0'
+                  : 'flex-none basis-1/3'
             )}>
               <SourcesColumn
                 sources={sources}
@@ -248,7 +266,11 @@ export default function NotebookPage() {
             {/* Notes Column */}
             <div className={cn(
               'transition-all duration-150',
-              notesCollapsed ? 'w-12 flex-shrink-0' : 'flex-none basis-1/3'
+              effNotesCollapsed
+                ? 'w-12 flex-shrink-0'
+                : focusedColumn === 'notes'
+                  ? 'flex-[2] min-w-0'
+                  : 'flex-none basis-1/3'
             )}>
               <NotesColumn
                 notes={notes}
@@ -261,13 +283,25 @@ export default function NotebookPage() {
             </div>
 
             {/* Chat Column - always expanded, takes remaining space */}
-            <div className="transition-all duration-150 flex-1 min-w-0 lg:pr-6 lg:-mr-6">
+            <div className="transition-all duration-150 flex-1 min-w-0">
               <ChatColumn
                 notebookId={notebookId}
                 contextSelections={contextSelections}
                 sources={sources}
                 sourcesLoading={sourcesLoading}
               />
+            </div>
+
+            {/* Study Column (Quiz & Flashcards) */}
+            <div className={cn(
+              'transition-all duration-150 lg:pr-6 lg:-mr-6',
+              effStudyCollapsed
+                ? 'w-12 flex-shrink-0'
+                : focusedColumn === 'study'
+                  ? 'flex-[2] min-w-0'
+                  : 'flex-none basis-1/4'
+            )}>
+              <StudyColumn notebookId={notebookId} />
             </div>
           </div>
         </div>

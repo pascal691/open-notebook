@@ -21,7 +21,7 @@ import { ConfirmDialog } from '@/components/common/ConfirmDialog'
 import { useModalManager } from '@/lib/hooks/use-modal-manager'
 import { ContextMode } from '../[id]/page'
 import type { SourceBulkAction } from '@/lib/utils/source-context'
-import { CollapsibleColumn, createCollapseButton } from '@/components/notebooks/CollapsibleColumn'
+import { CollapsibleColumn, createCollapseButton, createFocusButton } from '@/components/notebooks/CollapsibleColumn'
 import { useNotebookColumnsStore } from '@/lib/stores/notebook-columns-store'
 import { useTranslation } from '@/lib/hooks/use-translation'
 
@@ -67,10 +67,22 @@ export function SourcesColumn({
   const removeFromNotebook = useRemoveSourceFromNotebook()
 
   // Collapsible column state
-  const { sourcesCollapsed, toggleSources } = useNotebookColumnsStore()
+  const { sourcesCollapsed, toggleSources, focusedColumn, toggleFocus, clearFocus } =
+    useNotebookColumnsStore()
+  const collapsedByFocus = focusedColumn !== null && focusedColumn !== 'sources'
+  const effectiveCollapsed = sourcesCollapsed || collapsedByFocus
   const collapseButton = useMemo(
     () => createCollapseButton(toggleSources, t('navigation.sources')),
     [toggleSources, t('navigation.sources')]
+  )
+  const focusButton = useMemo(
+    () =>
+      createFocusButton(
+        () => toggleFocus('sources'),
+        focusedColumn === 'sources',
+        t('navigation.sources')
+      ),
+    [toggleFocus, focusedColumn, t('navigation.sources')]
   )
 
   // Scroll container ref for infinite scroll
@@ -151,8 +163,8 @@ export function SourcesColumn({
   return (
     <>
       <CollapsibleColumn
-        isCollapsed={sourcesCollapsed}
-        onToggle={toggleSources}
+        isCollapsed={effectiveCollapsed}
+        onToggle={collapsedByFocus ? clearFocus : toggleSources}
         collapsedIcon={FileText}
         collapsedLabel={t('navigation.sources')}
       >
@@ -201,6 +213,7 @@ export function SourcesColumn({
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
+                {focusButton}
                 {collapseButton}
               </div>
             </div>
