@@ -24,6 +24,7 @@ import {
 import { LoadingSpinner } from '@/components/common/LoadingSpinner'
 import { useTranslation } from '@/lib/hooks/use-translation'
 import { useNotebookSources } from '@/lib/hooks/use-sources'
+import { useModels } from '@/lib/hooks/use-models'
 import {
   ExamDifficulty,
   ExamQuestionType,
@@ -31,6 +32,7 @@ import {
 } from '@/lib/types/exams'
 
 const NONE_REFERENCE = '__none__'
+const DEFAULT_MODEL = '__default__'
 
 interface GenerateExamDialogProps {
   open: boolean
@@ -58,6 +60,22 @@ export function GenerateExamDialog({
 }: GenerateExamDialogProps) {
   const { t } = useTranslation()
   const { sources } = useNotebookSources(notebookId)
+  const { data: models } = useModels()
+  const languageModels = (models || []).filter((m) => m.type === 'language')
+
+  // Literal keys (not built dynamically) so the i18n key-usage checker can see them.
+  const difficultyLabels: Record<ExamDifficulty, string> = {
+    easy: t('exams.difficultyOptions.easy'),
+    medium: t('exams.difficultyOptions.medium'),
+    hard: t('exams.difficultyOptions.hard'),
+    mixed: t('exams.difficultyOptions.mixed'),
+  }
+  const questionTypeLabels: Record<ExamQuestionType, string> = {
+    multiple_choice: t('exams.questionTypeOptions.multiple_choice'),
+    true_false: t('exams.questionTypeOptions.true_false'),
+    short_answer: t('exams.questionTypeOptions.short_answer'),
+    open: t('exams.questionTypeOptions.open'),
+  }
 
   const [title, setTitle] = useState('')
   const [numQuestions, setNumQuestions] = useState(5)
@@ -65,6 +83,7 @@ export function GenerateExamDialog({
   const [questionTypes, setQuestionTypes] = useState<ExamQuestionType[]>(['open'])
   const [language, setLanguage] = useState('')
   const [referenceSourceId, setReferenceSourceId] = useState<string>(NONE_REFERENCE)
+  const [modelId, setModelId] = useState<string>(DEFAULT_MODEL)
   const [instructions, setInstructions] = useState('')
 
   const toggleType = (type: ExamQuestionType, checked: boolean) => {
@@ -84,6 +103,7 @@ export function GenerateExamDialog({
     if (language.trim()) request.language = language.trim()
     if (instructions.trim()) request.instructions = instructions.trim()
     if (referenceSourceId !== NONE_REFERENCE) request.reference_source_id = referenceSourceId
+    if (modelId !== DEFAULT_MODEL) request.model_id = modelId
     onGenerate(request)
   }
 
@@ -132,7 +152,7 @@ export function GenerateExamDialog({
                 <SelectContent>
                   {DIFFICULTIES.map((d) => (
                     <SelectItem key={d} value={d}>
-                      {t(`exams.difficultyOptions.${d}`)}
+                      {difficultyLabels[d]}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -152,7 +172,7 @@ export function GenerateExamDialog({
                     checked={questionTypes.includes(type)}
                     onCheckedChange={(checked) => toggleType(type, checked === true)}
                   />
-                  {t(`exams.questionTypeOptions.${type}`)}
+                  {questionTypeLabels[type]}
                 </label>
               ))}
             </div>
@@ -184,6 +204,26 @@ export function GenerateExamDialog({
                 </SelectContent>
               </Select>
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label>{t('exams.model')}</Label>
+            <Select value={modelId} onValueChange={setModelId}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={DEFAULT_MODEL}>{t('exams.modelDefault')}</SelectItem>
+                {languageModels.map((model) => (
+                  <SelectItem key={model.id} value={model.id}>
+                    {model.name}
+                    <span className="text-xs text-muted-foreground ml-2">
+                      {model.provider}
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="space-y-2">

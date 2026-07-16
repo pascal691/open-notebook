@@ -983,6 +983,8 @@ export const enUS = {
     referenceExam: "Reference exam (style only)",
     referenceNone: "None",
     untitledSource: "Untitled source",
+    model: "Model",
+    modelDefault: "Default model (from Settings)",
     instructions: "Additional instructions",
     instructionsPlaceholder: "Optional guidance for the exam generator",
     generate: "Generate",

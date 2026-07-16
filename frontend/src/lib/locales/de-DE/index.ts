@@ -985,6 +985,8 @@ export const deDE = {
     referenceExam: "Referenzklausur (nur Format)",
     referenceNone: "Keine",
     untitledSource: "Unbenannte Quelle",
+    model: "Modell",
+    modelDefault: "Standardmodell (aus Einstellungen)",
     instructions: "Zusätzliche Hinweise",
     instructionsPlaceholder: "Optionale Vorgaben für die Klausurerstellung",
     generate: "Erstellen",
