@@ -33,6 +33,14 @@ export default function NotebookExamsPage() {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [activeExamId, setActiveExamId] = useState<string | null>(null)
 
+  // Literal keys (not built dynamically) so the i18n key-usage checker can see them.
+  const difficultyLabels: Record<string, string> = {
+    easy: t('exams.difficultyOptions.easy'),
+    medium: t('exams.difficultyOptions.medium'),
+    hard: t('exams.difficultyOptions.hard'),
+    mixed: t('exams.difficultyOptions.mixed'),
+  }
+
   const handleGenerate = async (request: GenerateExamRequest) => {
     const exam = await generateExam.mutateAsync(request)
     setDialogOpen(false)
@@ -119,7 +127,7 @@ export default function NotebookExamsPage() {
                       )}
                     </Badge>
                     <Badge variant="outline">
-                      {t(`exams.difficultyOptions.${exam.difficulty}`)}
+                      {difficultyLabels[exam.difficulty] || exam.difficulty}
                     </Badge>
                     <Badge variant="outline">
                       {t('exams.pointsTotal').replace('{points}', String(exam.total_points))}

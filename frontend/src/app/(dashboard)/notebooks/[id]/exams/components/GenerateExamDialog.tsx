@@ -63,6 +63,20 @@ export function GenerateExamDialog({
   const { data: models } = useModels()
   const languageModels = (models || []).filter((m) => m.type === 'language')
 
+  // Literal keys (not built dynamically) so the i18n key-usage checker can see them.
+  const difficultyLabels: Record<ExamDifficulty, string> = {
+    easy: t('exams.difficultyOptions.easy'),
+    medium: t('exams.difficultyOptions.medium'),
+    hard: t('exams.difficultyOptions.hard'),
+    mixed: t('exams.difficultyOptions.mixed'),
+  }
+  const questionTypeLabels: Record<ExamQuestionType, string> = {
+    multiple_choice: t('exams.questionTypeOptions.multiple_choice'),
+    true_false: t('exams.questionTypeOptions.true_false'),
+    short_answer: t('exams.questionTypeOptions.short_answer'),
+    open: t('exams.questionTypeOptions.open'),
+  }
+
   const [title, setTitle] = useState('')
   const [numQuestions, setNumQuestions] = useState(5)
   const [difficulty, setDifficulty] = useState<ExamDifficulty>('medium')
@@ -138,7 +152,7 @@ export function GenerateExamDialog({
                 <SelectContent>
                   {DIFFICULTIES.map((d) => (
                     <SelectItem key={d} value={d}>
-                      {t(`exams.difficultyOptions.${d}`)}
+                      {difficultyLabels[d]}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -158,7 +172,7 @@ export function GenerateExamDialog({
                     checked={questionTypes.includes(type)}
                     onCheckedChange={(checked) => toggleType(type, checked === true)}
                   />
-                  {t(`exams.questionTypeOptions.${type}`)}
+                  {questionTypeLabels[type]}
                 </label>
               ))}
             </div>
