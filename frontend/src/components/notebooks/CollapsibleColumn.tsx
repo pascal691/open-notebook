@@ -3,7 +3,7 @@
 import { ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import { ChevronLeft, LucideIcon } from 'lucide-react'
+import { ChevronLeft, Maximize2, Minimize2, LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface CollapsibleColumnProps {
@@ -61,6 +61,42 @@ export function CollapsibleColumn({
   return (
     <div className="h-full min-h-0 transition-all duration-150">
       {children}
+    </div>
+  )
+}
+
+// Factory function to create a focus/maximize button for card headers.
+// When focused, the panel takes the majority of the width; click again to restore.
+export function createFocusButton(
+  onToggle: () => void,
+  isFocused: boolean,
+  label: string
+) {
+  const Icon = isFocused ? Minimize2 : Maximize2
+  const tip = isFocused ? `Restore ${label}` : `Maximize ${label}`
+  return (
+    <div className="hidden lg:block">
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={(e) => {
+                e.stopPropagation()
+                onToggle()
+              }}
+              className="h-7 w-7 hover:bg-accent"
+              aria-label={tip}
+            >
+              <Icon className="h-4 w-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>{tip}</p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
     </div>
   )
 }

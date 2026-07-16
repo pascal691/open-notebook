@@ -51,8 +51,16 @@ export default function NotebookPage() {
   } = useNotebookSources(notebookId)
   const { data: notes, isLoading: notesLoading } = useNotes(notebookId)
 
-  // Get collapse states for dynamic layout
-  const { sourcesCollapsed, notesCollapsed, studyCollapsed } = useNotebookColumnsStore()
+  // Get collapse + focus states for dynamic layout
+  const { sourcesCollapsed, notesCollapsed, studyCollapsed, focusedColumn } =
+    useNotebookColumnsStore()
+
+  // A panel is visually collapsed if it was collapsed manually, or if another
+  // panel is currently focused/maximized. The focused panel takes the majority
+  // of the width so it's roomier and easier to read.
+  const effSourcesCollapsed = sourcesCollapsed || (focusedColumn !== null && focusedColumn !== 'sources')
+  const effNotesCollapsed = notesCollapsed || (focusedColumn !== null && focusedColumn !== 'notes')
+  const effStudyCollapsed = studyCollapsed || (focusedColumn !== null && focusedColumn !== 'study')
 
   // Detect desktop to avoid double-mounting ChatColumn
   const isDesktop = useIsDesktop()
@@ -234,7 +242,11 @@ export default function NotebookPage() {
             {/* Sources Column */}
             <div className={cn(
               'transition-all duration-150',
-              sourcesCollapsed ? 'w-12 flex-shrink-0' : 'flex-none basis-1/3'
+              effSourcesCollapsed
+                ? 'w-12 flex-shrink-0'
+                : focusedColumn === 'sources'
+                  ? 'flex-[2] min-w-0'
+                  : 'flex-none basis-1/3'
             )}>
               <SourcesColumn
                 sources={sources}
@@ -254,7 +266,11 @@ export default function NotebookPage() {
             {/* Notes Column */}
             <div className={cn(
               'transition-all duration-150',
-              notesCollapsed ? 'w-12 flex-shrink-0' : 'flex-none basis-1/3'
+              effNotesCollapsed
+                ? 'w-12 flex-shrink-0'
+                : focusedColumn === 'notes'
+                  ? 'flex-[2] min-w-0'
+                  : 'flex-none basis-1/3'
             )}>
               <NotesColumn
                 notes={notes}
@@ -279,7 +295,11 @@ export default function NotebookPage() {
             {/* Study Column (Quiz & Flashcards) */}
             <div className={cn(
               'transition-all duration-150 lg:pr-6 lg:-mr-6',
-              studyCollapsed ? 'w-12 flex-shrink-0' : 'flex-none basis-1/4'
+              effStudyCollapsed
+                ? 'w-12 flex-shrink-0'
+                : focusedColumn === 'study'
+                  ? 'flex-[2] min-w-0'
+                  : 'flex-none basis-1/4'
             )}>
               <StudyColumn notebookId={notebookId} />
             </div>

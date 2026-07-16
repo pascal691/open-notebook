@@ -22,7 +22,7 @@ import type { NoteContextMode } from '../[id]/page'
 import type { NoteContextDefault } from '@/lib/utils/source-context'
 import { useDeleteNote } from '@/lib/hooks/use-notes'
 import { ConfirmDialog } from '@/components/common/ConfirmDialog'
-import { CollapsibleColumn, createCollapseButton } from '@/components/notebooks/CollapsibleColumn'
+import { CollapsibleColumn, createCollapseButton, createFocusButton } from '@/components/notebooks/CollapsibleColumn'
 import { useNotebookColumnsStore } from '@/lib/stores/notebook-columns-store'
 import { useTranslation } from '@/lib/hooks/use-translation'
 
@@ -52,11 +52,18 @@ export function NotesColumn({
   const deleteNote = useDeleteNote()
 
   // Collapsible column state
-  const { notesCollapsed, toggleNotes } = useNotebookColumnsStore()
+  const { notesCollapsed, toggleNotes, focusedColumn, toggleFocus, clearFocus } =
+    useNotebookColumnsStore()
   const notesLabel = t('common.notes')
+  const collapsedByFocus = focusedColumn !== null && focusedColumn !== 'notes'
+  const effectiveCollapsed = notesCollapsed || collapsedByFocus
   const collapseButton = useMemo(
     () => createCollapseButton(toggleNotes, notesLabel),
     [toggleNotes, notesLabel]
+  )
+  const focusButton = useMemo(
+    () => createFocusButton(() => toggleFocus('notes'), focusedColumn === 'notes', notesLabel),
+    [toggleFocus, focusedColumn, notesLabel]
   )
 
   const handleDeleteClick = (noteId: string) => {
@@ -79,8 +86,8 @@ export function NotesColumn({
   return (
     <>
       <CollapsibleColumn
-        isCollapsed={notesCollapsed}
-        onToggle={toggleNotes}
+        isCollapsed={effectiveCollapsed}
+        onToggle={collapsedByFocus ? clearFocus : toggleNotes}
         collapsedIcon={StickyNote}
         collapsedLabel={notesLabel}
       >
@@ -117,6 +124,7 @@ export function NotesColumn({
                   <Plus className="h-4 w-4 mr-2" />
                   {t('common.writeNote')}
                 </Button>
+                {focusButton}
                 {collapseButton}
               </div>
             </div>

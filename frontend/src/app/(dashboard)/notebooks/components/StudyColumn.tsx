@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { LoadingSpinner } from '@/components/common/LoadingSpinner'
 import { EmptyState } from '@/components/common/EmptyState'
 import { ConfirmDialog } from '@/components/common/ConfirmDialog'
-import { CollapsibleColumn, createCollapseButton } from '@/components/notebooks/CollapsibleColumn'
+import { CollapsibleColumn, createCollapseButton, createFocusButton } from '@/components/notebooks/CollapsibleColumn'
 import { useNotebookColumnsStore } from '@/lib/stores/notebook-columns-store'
 import { useTranslation } from '@/lib/hooks/use-translation'
 import { useQuizzes, useDeleteQuiz } from '@/lib/hooks/use-quiz'
@@ -29,11 +29,18 @@ interface StudyColumnProps {
 
 export function StudyColumn({ notebookId }: StudyColumnProps) {
   const { t } = useTranslation()
-  const { studyCollapsed, toggleStudy } = useNotebookColumnsStore()
+  const { studyCollapsed, toggleStudy, focusedColumn, toggleFocus, clearFocus } =
+    useNotebookColumnsStore()
   const studyLabel = t('study.title')
+  const collapsedByFocus = focusedColumn !== null && focusedColumn !== 'study'
+  const effectiveCollapsed = studyCollapsed || collapsedByFocus
   const collapseButton = useMemo(
     () => createCollapseButton(toggleStudy, studyLabel),
     [toggleStudy, studyLabel]
+  )
+  const focusButton = useMemo(
+    () => createFocusButton(() => toggleFocus('study'), focusedColumn === 'study', studyLabel),
+    [toggleFocus, focusedColumn, studyLabel]
   )
 
   const { quizzes, isLoading: quizzesLoading } = useQuizzes(notebookId)
@@ -63,8 +70,8 @@ export function StudyColumn({ notebookId }: StudyColumnProps) {
   return (
     <>
       <CollapsibleColumn
-        isCollapsed={studyCollapsed}
-        onToggle={toggleStudy}
+        isCollapsed={effectiveCollapsed}
+        onToggle={collapsedByFocus ? clearFocus : toggleStudy}
         collapsedIcon={GraduationCap}
         collapsedLabel={studyLabel}
       >
@@ -72,7 +79,10 @@ export function StudyColumn({ notebookId }: StudyColumnProps) {
           <CardHeader className="pb-3 flex-shrink-0">
             <div className="flex items-center justify-between gap-2">
               <CardTitle className="text-lg">{studyLabel}</CardTitle>
-              {collapseButton}
+              <div className="flex items-center gap-1">
+                {focusButton}
+                {collapseButton}
+              </div>
             </div>
           </CardHeader>
 
