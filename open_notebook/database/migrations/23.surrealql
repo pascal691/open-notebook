@@ -1,0 +1,35 @@
+-- Migration 23: Practice exam feature
+-- Adds the `exam` and `exam_submission` tables used to generate practice
+-- exams from a notebook's knowledge and to grade user submissions.
+
+DEFINE TABLE IF NOT EXISTS exam SCHEMAFULL;
+DEFINE FIELD IF NOT EXISTS notebook ON TABLE exam TYPE record<notebook>;
+DEFINE FIELD IF NOT EXISTS title ON TABLE exam TYPE string;
+DEFINE FIELD IF NOT EXISTS description ON TABLE exam TYPE option<string>;
+DEFINE FIELD IF NOT EXISTS num_questions ON TABLE exam TYPE int DEFAULT 5;
+DEFINE FIELD IF NOT EXISTS difficulty ON TABLE exam TYPE string DEFAULT 'medium';
+DEFINE FIELD IF NOT EXISTS question_types ON TABLE exam TYPE array<string> DEFAULT [];
+DEFINE FIELD IF NOT EXISTS language ON TABLE exam TYPE option<string>;
+DEFINE FIELD IF NOT EXISTS instructions ON TABLE exam TYPE option<string>;
+DEFINE FIELD IF NOT EXISTS reference_source ON TABLE exam TYPE option<record<source>>;
+DEFINE FIELD IF NOT EXISTS status ON TABLE exam TYPE string DEFAULT 'ready';
+DEFINE FIELD IF NOT EXISTS questions ON TABLE exam FLEXIBLE TYPE option<array<object>> DEFAULT [];
+DEFINE FIELD IF NOT EXISTS created ON exam DEFAULT time::now() VALUE $before OR time::now();
+DEFINE FIELD IF NOT EXISTS updated ON exam DEFAULT time::now() VALUE time::now();
+
+DEFINE TABLE IF NOT EXISTS exam_submission SCHEMAFULL;
+DEFINE FIELD IF NOT EXISTS exam ON TABLE exam_submission TYPE record<exam>;
+DEFINE FIELD IF NOT EXISTS answers ON TABLE exam_submission FLEXIBLE TYPE option<object> DEFAULT {};
+DEFINE FIELD IF NOT EXISTS status ON TABLE exam_submission TYPE string DEFAULT 'submitted';
+DEFINE FIELD IF NOT EXISTS graded ON TABLE exam_submission TYPE bool DEFAULT false;
+DEFINE FIELD IF NOT EXISTS total_score ON TABLE exam_submission TYPE float DEFAULT 0.0;
+DEFINE FIELD IF NOT EXISTS max_score ON TABLE exam_submission TYPE float DEFAULT 0.0;
+DEFINE FIELD IF NOT EXISTS percentage ON TABLE exam_submission TYPE float DEFAULT 0.0;
+DEFINE FIELD IF NOT EXISTS overall_feedback ON TABLE exam_submission TYPE option<string> DEFAULT '';
+DEFINE FIELD IF NOT EXISTS results ON TABLE exam_submission FLEXIBLE TYPE option<array<object>> DEFAULT [];
+DEFINE FIELD IF NOT EXISTS created ON exam_submission DEFAULT time::now() VALUE $before OR time::now();
+DEFINE FIELD IF NOT EXISTS updated ON exam_submission DEFAULT time::now() VALUE time::now();
+
+DEFINE EVENT IF NOT EXISTS exam_delete ON TABLE exam WHEN ($after == NONE) THEN {
+    delete exam_submission where exam == $before.id;
+};

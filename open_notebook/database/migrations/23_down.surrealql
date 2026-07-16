@@ -1,0 +1,4 @@
+-- Rollback Migration 23: Remove practice exam tables
+
+REMOVE TABLE IF EXISTS exam_submission;
+REMOVE TABLE IF EXISTS exam;
