@@ -1,0 +1,6 @@
+-- Migration 20 rollback: Remove Quiz & Flashcards tables
+
+REMOVE TABLE IF EXISTS quiz_of;
+REMOVE TABLE IF EXISTS flashcard_deck_of;
+REMOVE TABLE IF EXISTS quiz;
+REMOVE TABLE IF EXISTS flashcard_deck;
