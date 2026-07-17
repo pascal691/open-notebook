@@ -140,8 +140,15 @@ EXPOSE 8502 5055
 ENTRYPOINT ["/app/scripts/docker-entrypoint.sh"]
 CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
 
-# Stage 5: Single-container variant (adds SurrealDB on top of the shared runtime)
-# Build with: docker build --target single .
+# Stage 5: Regular multi-container image (SurrealDB runs externally).
+# Explicit target — build with: docker build --target runtime .
+FROM runtime-base AS runtime
+
+# Stage 6 (DEFAULT): Single-container variant (app + embedded SurrealDB).
+# Kept LAST so a plain `docker build .` (e.g. Coolify without a build-stage
+# target) produces the all-in-one image with SurrealDB bundled — the default
+# for this self-hosted deployment. Build the external-DB variant explicitly
+# with `--target runtime`.
 FROM runtime-base AS single
 
 # Install SurrealDB (copied from pinned v2 image to match docker-compose.yml)
@@ -152,7 +159,3 @@ RUN mkdir -p /mydata
 
 # Enable the surrealdb program in supervisord (appended to the shared config)
 RUN cat /app/supervisord.surrealdb.conf >> /etc/supervisor/conf.d/supervisord.conf
-
-# Stage 6 (default): Regular multi-container image (SurrealDB runs externally).
-# Kept last so a plain `docker build .` produces this variant.
-FROM runtime-base AS runtime
