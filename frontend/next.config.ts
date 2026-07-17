@@ -4,6 +4,14 @@ const nextConfig: NextConfig = {
   // Enable standalone output for optimized Docker deployment
   output: "standalone",
 
+  // Don't fail the production build on ESLint findings. Linting is run
+  // separately (`npm run lint` / CI); type-checking still runs during build,
+  // so type safety is preserved. This keeps deploys robust against lint-only
+  // issues in feature code.
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
+
   // Experimental features
   // Type assertion needed: proxyClientMaxBodySize is valid in Next.js 15 but types lag behind
   experimental: {
